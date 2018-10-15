@@ -43,14 +43,31 @@ class Encoder:
 
         # the inputs will be np.array of shape (N, self.input_dim), dtype: np.float32
         # outputs will be np.array of shape (N, self.output_dim), dtype: np.float32
+        dim_h1 = self.output_dim << 2
+        dim_h2 = self.output_dim << 1
 
-        pass
+        X = tf.placeholder(tf.float32, [None, self.input_dim], name="X")
+        # hidden layer 1
+        W1 = tf.Variable(tf.zeros([self.input_dim, dim_h1]))
+        b1 = tf.Variable(tf.zeros([dim_h1]))
+        h1 = tf.add(tf.matmul(X, W1), b1)
+        # hidden layer 2
+        W2 = tf.Variable(tf.zeros([dim_h1, dim_h2]))
+        b2 = tf.Variable(tf.zeros([dim_h2]))
+        h2 = tf.add(tf.matmul(h1, W2), b2)
+        # output layer (latent space)
+        W3 = tf.Variable(tf.zeros([dim_h2, self.output_dim]))
+        b3 = tf.Variable(tf.zeros([self.output_dim]))
+        L = tf.add(tf.matmul(h2, W3), b3, name="L")
 
     def encode(self, X: np.ndarray) -> np.ndarray:
         self.validate_data(X)
         # TODO
         # Return the encoded vector of X,
         # should be np.array of shape (N, self.output_dim).
+        model_X = self.graph.get_tensor_by_name(f"{_SCOPE_NAME}/X:0")
+        model_L = self.graph.get_tensor_by_name(f"{_SCOPE_NAME}/L:0")
+        return self.sess.run(model_L, feed_dict={model_X: X})
 
     def validate_data(self, data: Data):
         x = data[0] if isinstance(data, tuple) else data
@@ -66,13 +83,27 @@ class Encoder:
         # from given file path which has been passed to save already.
 
         # Hint: make use of tf.train.Saver
-
-        pass
+        # restore
+        sess = tf.Session()
+        saver = tf.train.import_meta_graph(f'{path}.meta')
+        saver.restore(sess=sess, save_path=path)
+        # init
+        graph = tf.get_default_graph()
+        input_dim = int(graph.get_tensor_by_name(f"{_SCOPE_NAME}/X:0").get_shape()[1])
+        output_dim = int(graph.get_tensor_by_name(f"{_SCOPE_NAME}/L:0").get_shape()[1])
+        encoder = cls(input_dim=input_dim, output_dim=output_dim)
+        # setup
+        encoder.graph = graph
+        encoder.sess = sess
+        encoder.saver = tf.train.Saver(
+            var_list=encoder.graph.get_collection(
+                tf.GraphKeys.GLOBAL_VARIABLES, scope=_SCOPE_NAME),
+        )
+        return encoder
 
     def save(self, path: str):
         # TODO
         # Save the variables and hyperparameters of Encoder to given path.
 
         # Hint: make use of tf.train.Saver
-
-        pass
+        self.saver.save(self.sess, path)
