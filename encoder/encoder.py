@@ -85,11 +85,12 @@ class Encoder:
 
         # Hint: make use of tf.train.Saver
         # restore
-        sess = tf.Session()
-        saver = tf.train.import_meta_graph(f'{path}.meta')
-        saver.restore(sess=sess, save_path=path)
+        graph = tf.Graph()
+        with graph.as_default():
+            sess = tf.Session()
+            saver = tf.train.import_meta_graph(f'{path}.meta')
+            saver.restore(sess=sess, save_path=path)
         # init
-        graph = tf.get_default_graph()
         input_dim = int(graph.get_tensor_by_name(f"{_SCOPE_NAME}/X:0").get_shape()[1])
         output_dim = int(graph.get_tensor_by_name(f"{_SCOPE_NAME}/L:0").get_shape()[1])
         encoder = cls(input_dim=input_dim, output_dim=output_dim)

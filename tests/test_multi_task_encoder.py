@@ -119,3 +119,48 @@ class TestMultiTaskEncoder:
             decimal=6,
         )
         shutil.rmtree(path)
+
+    # new test
+    def test_encoder_save_load_2(self, multi_task_model):
+        encoder = multi_task_model.encoder
+        path1 = tempfile.mkdtemp()
+        path2 = tempfile.mkdtemp()
+
+        encoder.save(path=path1)
+        loaded1 = Encoder.load(path=path1)
+        loaded1.save(path=path2)
+        loaded2 = Encoder.load(path=path2)
+
+        x = np.random.randn(100, self.input_dim)
+        assert encoder.input_dim == loaded2.input_dim
+        assert encoder.output_dim == loaded2.output_dim
+        np.testing.assert_array_almost_equal(
+            encoder.encode(x),
+            loaded2.encode(x),
+            decimal=6,
+        )
+        shutil.rmtree(path1)
+        shutil.rmtree(path2)
+
+    def test_fit_2(
+            self,
+            multi_task_model,
+            supervised_tasks_and_data,
+            unsupervised_tasks_and_data,
+            tasks_and_data,
+        ):
+        n_step = 5
+        for i in range(n_step):
+            original_losses = self.evaluate_on_tasks(multi_task_model, tasks_and_data)
+            multi_task_model.fit(
+                supervised_data=supervised_tasks_and_data,
+                unsupervised_data=unsupervised_tasks_and_data,
+            )
+            new_losses = self.evaluate_on_tasks(multi_task_model, tasks_and_data)
+            assert all([
+                new_loss < original_loss
+                for new_loss, original_loss in zip(new_losses, original_losses)
+            ])
+            print(f'step: {i}')
+            print(f'original_losses: {original_losses}')
+            print(f'new_losses: {new_losses}')

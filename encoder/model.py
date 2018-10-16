@@ -45,8 +45,8 @@ class MultiTaskModel:
         self._validate_multi_task_data(unsupervised_data)
         # TODO
         # Try to minimize the losses of each tasks
-        n_epoch = 5
-        n_iter_each_epoch = 3
+        n_epoch = 6
+        n_iter_each_epoch = 2
         graph, sess, scope = self.graph, self.sess, self.encoder.scope
 
         for i in range(n_epoch):
