@@ -16,6 +16,7 @@ class Encoder:
 
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.scope = _SCOPE_NAME
         self._set_up()
 
     def _set_up(self):

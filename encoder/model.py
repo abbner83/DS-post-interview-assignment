@@ -45,6 +45,23 @@ class MultiTaskModel:
         self._validate_multi_task_data(unsupervised_data)
         # TODO
         # Try to minimize the losses of each tasks
+        n_epoch = 5
+        n_iter_each_epoch = 3
+        graph, sess, scope = self.graph, self.sess, self.encoder.scope
+
+        for i in range(n_epoch):
+            for task, data in supervised_data.items():
+                X, Y = data
+                model_X = graph.get_tensor_by_name(f"{scope}/X:0")
+                model_Y = graph.get_tensor_by_name(f"{task}/Y_:0")
+                train_step = graph.get_operation_by_name(f"{task}/train_step")
+                for _ in range(n_iter_each_epoch):
+                    sess.run(train_step, feed_dict={model_X: X, model_Y: Y})
+            for task, data in unsupervised_data.items():
+                model_X = graph.get_tensor_by_name(f"{scope}/X:0")
+                train_step = graph.get_operation_by_name(f"{task}/train_step")
+                for _ in range(n_iter_each_epoch):
+                    sess.run(train_step, feed_dict={model_X: data})
 
     def _validate_multi_task_data(self, multi_task_data: MultiTaskData):
         for task, data in multi_task_data.items():
@@ -61,3 +78,13 @@ class MultiTaskModel:
         # TODO
         # Return the loss of given task on given data.
         # output should be np.array of shape (). (a.k.a scalar)
+        graph, sess, scope = self.graph, self.sess, self.encoder.scope
+
+        model_X = graph.get_tensor_by_name(f"{scope}/X:0")
+        loss = graph.get_tensor_by_name(f"{task}/loss:0")
+        if type(data)==tuple:
+            X, Y = data
+            model_Y = graph.get_tensor_by_name(f"{task}/Y_:0")
+            return sess.run(loss, feed_dict={model_X: X, model_Y: Y})
+        else:
+            return sess.run(loss, feed_dict={model_X: data})

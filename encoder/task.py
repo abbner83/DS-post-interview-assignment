@@ -75,8 +75,35 @@ class MultiLabelTask(SupervisedTask):
         # and np.int32 value in {0, 1}
 
         # the prediction should be based on the output of encoder.
+        graph = encoder.graph
+        L = graph.get_tensor_by_name(f"{encoder.scope}/L:0")
 
-        pass
+        latent_dim = int(L.get_shape()[1])
+        dim_h1 = self.output_dim << 3
+        dim_h2 = self.output_dim << 2
+        dim_h3 = self.output_dim << 1
+        # hidden layer 1
+        W1 = tf.Variable(tf.zeros([latent_dim, dim_h1]))
+        b1 = tf.Variable(tf.zeros([dim_h1]))
+        h1 = tf.add(tf.matmul(L, W1), b1)
+        # hidden layer 2
+        W2 = tf.Variable(tf.zeros([dim_h1, dim_h2]))
+        b2 = tf.Variable(tf.zeros([dim_h2]))
+        h2 = tf.add(tf.matmul(h1, W2), b2)
+        # output layer (latent space)
+        W3 = tf.Variable(tf.zeros([dim_h2, dim_h3]))
+        b3 = tf.Variable(tf.zeros([dim_h3]))
+        h3 = tf.add(tf.matmul(h2, W3), b3)
+        Y_pred = tf.reshape(h3, [-1, self.output_dim, 2], name="Y_pred")
+        # true labels
+        Y_ = tf.placeholder(tf.int32, [None, self.output_dim], name="Y_")
+        Y_onehot = tf.one_hot(Y_, 2)
+        # train
+        loss = tf.reduce_mean(
+            tf.nn.softmax_cross_entropy_with_logits(labels=Y_onehot, logits=Y_pred),
+            name="loss"
+        )
+        train_step = tf.train.RMSPropOptimizer(0.05).minimize(loss, name='train_step')
 
 
 class MultiClassTask(SupervisedTask):
@@ -94,8 +121,33 @@ class MultiClassTask(SupervisedTask):
         # and np.int32 value in [0, n_classes)
 
         # the prediction should be based on the output of encoder.
+        graph = encoder.graph
+        L = graph.get_tensor_by_name(f"{encoder.scope}/L:0")
 
-        pass
+        latent_dim = int(L.get_shape()[1])
+        dim_h1 = self.n_classes << 2
+        dim_h2 = self.n_classes << 1
+        # hidden layer 1
+        W1 = tf.Variable(tf.zeros([latent_dim, dim_h1]))
+        b1 = tf.Variable(tf.zeros([dim_h1]))
+        h1 = tf.add(tf.matmul(L, W1), b1)
+        # hidden layer 2
+        W2 = tf.Variable(tf.zeros([dim_h1, dim_h2]))
+        b2 = tf.Variable(tf.zeros([dim_h2]))
+        h2 = tf.add(tf.matmul(h1, W2), b2)
+        # output layer (latent space)
+        W3 = tf.Variable(tf.zeros([dim_h2, self.n_classes]))
+        b3 = tf.Variable(tf.zeros([self.n_classes]))
+        Y_pred = tf.nn.softmax(tf.matmul(h2, W3) + b3, name="Y_pred")
+        # true labels
+        Y_ = tf.placeholder(tf.int32, [None, 1], name="Y_")
+        Y_onehot = tf.one_hot(Y_, self.n_classes)
+        # train
+        loss = tf.reduce_mean(
+            tf.nn.softmax_cross_entropy_with_logits(labels=Y_onehot, logits=Y_pred),
+            name="loss"
+        )
+        train_step = tf.train.RMSPropOptimizer(0.05).minimize(loss, name='train_step')
 
 
 class UnsupervisedTask(Task):
@@ -115,5 +167,29 @@ class AutoEncoderTask(UnsupervisedTask):
         # to reconstruct the original input data.
 
         # the prediction should be based on the output of encoder.
+        graph = encoder.graph
+        Y = graph.get_tensor_by_name(f"{encoder.scope}/X:0")
+        L = graph.get_tensor_by_name(f"{encoder.scope}/L:0")
+        latent_dim = int(L.get_shape()[1])
+        output_dim = int(Y.get_shape()[1])
+        dim_h1 = latent_dim << 1
+        dim_h2 = latent_dim << 2
+        # hidden layer 1
+        W1 = tf.Variable(tf.zeros([latent_dim, dim_h1]))
+        b1 = tf.Variable(tf.zeros([dim_h1]))
+        h1 = tf.add(tf.matmul(L, W1), b1)
+        # hidden layer 2
+        W2 = tf.Variable(tf.zeros([dim_h1, dim_h2]))
+        b2 = tf.Variable(tf.zeros([dim_h2]))
+        h2 = tf.add(tf.matmul(h1, W2), b2)
+        # output layer (latent space)
+        W3 = tf.Variable(tf.zeros([dim_h2, self.output_dim]))
+        b3 = tf.Variable(tf.zeros([self.output_dim]))
+        Y_pred = tf.add(tf.matmul(h2, W3), b3, name="Y_pred")
+        # train
+        loss = tf.reduce_mean(
+            tf.squared_difference(Y, Y_pred),
+            name="loss"
+        )
+        train_step = tf.train.RMSPropOptimizer(0.05).minimize(loss, name='train_step')
 
-        pass
