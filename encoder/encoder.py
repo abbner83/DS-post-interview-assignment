@@ -49,15 +49,15 @@ class Encoder:
 
         X = tf.placeholder(tf.float32, [None, self.input_dim], name="X")
         # hidden layer 1
-        W1 = tf.Variable(tf.zeros([self.input_dim, dim_h1]))
+        W1 = tf.Variable(tf.random_normal([self.input_dim, dim_h1]))
         b1 = tf.Variable(tf.zeros([dim_h1]))
-        h1 = tf.add(tf.matmul(X, W1), b1)
+        h1 = tf.sigmoid(tf.add(tf.matmul(X, W1), b1))
         # hidden layer 2
-        W2 = tf.Variable(tf.zeros([dim_h1, dim_h2]))
+        W2 = tf.Variable(tf.random_normal([dim_h1, dim_h2]))
         b2 = tf.Variable(tf.zeros([dim_h2]))
-        h2 = tf.add(tf.matmul(h1, W2), b2)
+        h2 = tf.sigmoid(tf.add(tf.matmul(h1, W2), b2))
         # output layer (latent space)
-        W3 = tf.Variable(tf.zeros([dim_h2, self.output_dim]))
+        W3 = tf.Variable(tf.random_normal([dim_h2, self.output_dim]))
         b3 = tf.Variable(tf.zeros([self.output_dim]))
         L = tf.add(tf.matmul(h2, W3), b3, name="L")
 
