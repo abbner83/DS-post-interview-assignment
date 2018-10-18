@@ -57,6 +57,17 @@ class SupervisedTask(Task):
         if y.shape[1] != self.output_dim:
             raise ValueError(f"Invalid output data dimension: {y.shape[1]} != {self.output_dim}!")
 
+    def create_model_dims(self, input_dim, output_dim):
+        max_hid_layer = 2
+        dim_list = [input_dim, output_dim]
+        hid_layer = 0
+        layer_size = 32
+        while layer_size < (input_dim << 1) and hid_layer < max_hid_layer:
+            if layer_size > self.output_dim:
+                dim_list.insert(1, layer_size)
+            layer_size <<= 1
+        return dim_list
+
 
 class MultiLabelTask(SupervisedTask):
 
@@ -78,25 +89,19 @@ class MultiLabelTask(SupervisedTask):
         # the prediction should be based on the output of encoder.
         graph = encoder.graph
         scope = encoder.scope
-        L = graph.get_tensor_by_name(f"{scope}/L:0")
+        h = graph.get_tensor_by_name(f"{scope}/L:0")
+        keep_prob = graph.get_tensor_by_name(f"{scope}/keep_prob:0")
 
-        latent_dim = int(L.get_shape()[1])
-        dim_h1 = self.output_dim << 3
-        dim_h2 = self.output_dim << 2
-        dim_h3 = self.output_dim << 1
-        # hidden layer 1
-        W1 = tf.Variable(tf.random_normal([latent_dim, dim_h1]))
-        b1 = tf.Variable(tf.zeros([dim_h1]))
-        h1 = tf.sigmoid(tf.add(tf.matmul(L, W1), b1))
-        # hidden layer 2
-        W2 = tf.Variable(tf.random_normal([dim_h1, dim_h2]))
-        b2 = tf.Variable(tf.zeros([dim_h2]))
-        h2 = tf.sigmoid(tf.add(tf.matmul(h1, W2), b2))
-        # output layer
-        W3 = tf.Variable(tf.random_normal([dim_h2, dim_h3]))
-        b3 = tf.Variable(tf.zeros([dim_h3]))
-        h3 = tf.add(tf.matmul(h2, W3), b3)
-        Y_pred = tf.reshape(h3, [-1, self.output_dim, 2], name="Y_pred")
+        # model
+        dim_list = self.create_model_dims(encoder.output_dim, self.output_dim << 1)
+        for i in range(1, len(dim_list)):
+            W = tf.Variable(tf.random_normal([dim_list[i - 1], dim_list[i]]), name="W")
+            b = tf.Variable(tf.zeros([dim_list[i]]), name="b")
+            if len(dim_list) - (i + 1):
+                h = tf.sigmoid(tf.add(tf.matmul(h, W), b))
+                h = tf.nn.dropout(h, keep_prob)
+        h = tf.add(tf.matmul(h, W), 3)
+        Y_pred = tf.reshape(h, [-1, self.output_dim, 2], name="Y_pred")
         # true labels
         Y_ = tf.placeholder(tf.int32, [None, self.output_dim], name="Y_")
         Y_onehot = tf.one_hot(Y_, 2)
@@ -107,7 +112,6 @@ class MultiLabelTask(SupervisedTask):
         )
         train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.name) + \
                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
-        print(train_vars)
         train_step = tf.train.RMSPropOptimizer(self.lr).minimize(
             loss, var_list=train_vars, name='train_step'
         )
@@ -130,23 +134,18 @@ class MultiClassTask(SupervisedTask):
         # the prediction should be based on the output of encoder.
         graph = encoder.graph
         scope = encoder.scope
-        L = graph.get_tensor_by_name(f"{scope}/L:0")
+        h = graph.get_tensor_by_name(f"{scope}/L:0")
+        keep_prob = graph.get_tensor_by_name(f"{scope}/keep_prob:0")
 
-        latent_dim = int(L.get_shape()[1])
-        dim_h1 = self.n_classes << 2
-        dim_h2 = self.n_classes << 1
-        # hidden layer 1
-        W1 = tf.Variable(tf.random_normal([latent_dim, dim_h1]))
-        b1 = tf.Variable(tf.zeros([dim_h1]))
-        h1 = tf.sigmoid(tf.add(tf.matmul(L, W1), b1))
-        # hidden layer 2
-        W2 = tf.Variable(tf.random_normal([dim_h1, dim_h2]))
-        b2 = tf.Variable(tf.zeros([dim_h2]))
-        h2 = tf.sigmoid(tf.add(tf.matmul(h1, W2), b2))
-        # output layer
-        W3 = tf.Variable(tf.random_normal([dim_h2, self.n_classes]))
-        b3 = tf.Variable(tf.zeros([self.n_classes]))
-        Y_pred = tf.add(tf.matmul(h2, W3), b3, name="Y_pred")
+        # model
+        dim_list = self.create_model_dims(encoder.output_dim, self.n_classes)
+        for i in range(1, len(dim_list)):
+            W = tf.Variable(tf.random_normal([dim_list[i - 1], dim_list[i]]), name="W")
+            b = tf.Variable(tf.zeros([dim_list[i]]), name="b")
+            if len(dim_list) - (i + 1):
+                h = tf.sigmoid(tf.add(tf.matmul(h, W), b))
+                h = tf.nn.dropout(h, keep_prob)
+        Y_pred = tf.add(tf.matmul(h, W), b, name="Y_pred")
         # true labels
         Y_ = tf.placeholder(tf.int32, [None, 1], name="Y_")
         Y_onehot = tf.squeeze(tf.one_hot(Y_, self.n_classes), [1], name="Y_onehot")
@@ -157,7 +156,6 @@ class MultiClassTask(SupervisedTask):
         )
         train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.name) + \
                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
-        print(train_vars)
         train_step = tf.train.RMSPropOptimizer(self.lr).minimize(
             loss, var_list=train_vars, name='train_step'
         )
@@ -184,13 +182,15 @@ class AutoEncoderTask(UnsupervisedTask):
         scope = encoder.scope
         Y = graph.get_tensor_by_name(f"{scope}/X:0")
         h = graph.get_tensor_by_name(f"{scope}/L:0")
+        keep_prob = graph.get_tensor_by_name(f"{scope}/keep_prob:0")
 
-        dim_list = encoder.create_model_dims()[::-1]
+        dim_list = encoder.model_dims[::-1]
         for i in range(1, len(dim_list)):
             W = tf.Variable(tf.random_normal([dim_list[i - 1], dim_list[i]]), name="W")
             b = tf.Variable(tf.zeros([dim_list[i]]), name="b")
             if len(dim_list) - (i + 1):
                 h = tf.sigmoid(tf.add(tf.matmul(h, W), b))
+                h = tf.nn.dropout(h, keep_prob)
         Y_pred = tf.add(tf.matmul(h, W), b, name="Y_pred")
 
         # train
@@ -200,7 +200,6 @@ class AutoEncoderTask(UnsupervisedTask):
         )
         train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.name) + \
                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
-        print(train_vars)
         train_step = tf.train.RMSPropOptimizer(self.lr).minimize(
             loss, var_list=train_vars, name='train_step'
         )
