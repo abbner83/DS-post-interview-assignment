@@ -15,7 +15,7 @@ class Task(abc.ABC):
 
         self.name = name
         self.output_dim = output_dim
-        self.lr = 1e-3
+        self.lr = 1e-2
 
     def extend_encoder_graph(self, encoder):
         graph = encoder.graph
@@ -65,6 +65,7 @@ class SupervisedTask(Task):
         while layer_size < (input_dim << 1) and hid_layer < max_hid_layer:
             if layer_size > self.output_dim:
                 dim_list.insert(1, layer_size)
+                hid_layer += 1
             layer_size <<= 1
         return dim_list
 

@@ -65,6 +65,7 @@ class Encoder:
         while layer_size < (self.input_dim << 1) and hid_layer < self.max_hid_layer:
             if layer_size > self.output_dim:
                 dim_list.insert(1, layer_size)
+                hid_layer += 1
             layer_size <<= 1
         return dim_list
 
