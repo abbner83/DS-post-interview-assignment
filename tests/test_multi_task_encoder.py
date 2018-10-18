@@ -142,6 +142,17 @@ class TestMultiTaskEncoder:
         shutil.rmtree(path1)
         shutil.rmtree(path2)
 
+    def test_prediction(self, multi_task_model, tasks_and_data):
+        for task, data in tasks_and_data.items():
+            prediction = multi_task_model.predict(task, data)
+            if type(data)==tuple:
+                _, data = data
+                try:
+                    data - prediction
+                except:
+                    # ValueError: different shape
+                    assert False
+
     # def test_fit_2(
     #         self,
     #         multi_task_model,
@@ -166,14 +177,15 @@ class TestMultiTaskEncoder:
     #     sess = multi_task_model.encoder.sess
     #     X = graph.get_tensor_by_name("Encoder/X:0")
     #     L = graph.get_tensor_by_name(f"Encoder/L:0")
+    #     keep_prob = graph.get_tensor_by_name(f"Encoder/keep_prob:0")
     #     Y_pred = graph.get_tensor_by_name("auto_encoder_test/Y_pred:0")
     #     for task, data in unsupervised_tasks_and_data.items():
     #         print("X")
     #         print(data[:5, :4])
     #         print("Y_pred")
-    #         print(sess.run(Y_pred, feed_dict={X: data})[:5, :4])
+    #         print(sess.run(Y_pred, feed_dict={X: data, keep_prob: 1.0})[:5, :4])
     #         print("L")
-    #         print(sess.run(L, feed_dict={X: data})[:5, :4])
+    #         print(sess.run(L, feed_dict={X: data, keep_prob: 1.0})[:5, :4])
     #     W = graph.get_tensor_by_name("auto_encoder_test/W:0")
     #     b = graph.get_tensor_by_name("auto_encoder_test/b:0")
     #     print("W")

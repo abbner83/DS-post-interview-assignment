@@ -103,6 +103,7 @@ class MultiLabelTask(SupervisedTask):
                 h = tf.nn.dropout(h, keep_prob)
         h = tf.add(tf.matmul(h, W), 3)
         Y_pred = tf.reshape(h, [-1, self.output_dim, 2], name="Y_pred")
+        prediction = tf.arg_max(Y_pred, -1, name="prediction")
         # true labels
         Y_ = tf.placeholder(tf.int32, [None, self.output_dim], name="Y_")
         Y_onehot = tf.one_hot(Y_, 2)
@@ -147,6 +148,7 @@ class MultiClassTask(SupervisedTask):
                 h = tf.sigmoid(tf.add(tf.matmul(h, W), b))
                 h = tf.nn.dropout(h, keep_prob)
         Y_pred = tf.add(tf.matmul(h, W), b, name="Y_pred")
+        prediction = tf.arg_max(Y_pred, -1, name="prediction")
         # true labels
         Y_ = tf.placeholder(tf.int32, [None, 1], name="Y_")
         Y_onehot = tf.squeeze(tf.one_hot(Y_, self.n_classes), [1], name="Y_onehot")
@@ -193,6 +195,7 @@ class AutoEncoderTask(UnsupervisedTask):
                 h = tf.sigmoid(tf.add(tf.matmul(h, W), b))
                 h = tf.nn.dropout(h, keep_prob)
         Y_pred = tf.add(tf.matmul(h, W), b, name="Y_pred")
+        prediction = tf.identity(Y_pred, name="prediction")
 
         # train
         loss = tf.reduce_mean(
