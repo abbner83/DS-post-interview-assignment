@@ -15,7 +15,7 @@ class Task(abc.ABC):
 
         self.name = name
         self.output_dim = output_dim
-        self.lr = 1e-2
+        self.lr = 1e-3
 
     def extend_encoder_graph(self, encoder):
         graph = encoder.graph
@@ -183,22 +183,16 @@ class AutoEncoderTask(UnsupervisedTask):
         graph = encoder.graph
         scope = encoder.scope
         Y = graph.get_tensor_by_name(f"{scope}/X:0")
-        L = graph.get_tensor_by_name(f"{scope}/L:0")
-        latent_dim = int(L.get_shape()[1])
-        dim_h1 = latent_dim << 1
-        dim_h2 = latent_dim << 2
-        # hidden layer 1
-        W1 = tf.Variable(tf.random_normal([latent_dim, dim_h1]))
-        b1 = tf.Variable(tf.zeros([dim_h1]))
-        h1 = tf.sigmoid(tf.add(tf.matmul(L, W1), b1))
-        # hidden layer 2
-        W2 = tf.Variable(tf.random_normal([dim_h1, dim_h2]))
-        b2 = tf.Variable(tf.zeros([dim_h2]))
-        h2 = tf.sigmoid(tf.add(tf.matmul(h1, W2), b2))
-        # output layer
-        W3 = tf.Variable(tf.random_normal([dim_h2, self.output_dim]), name="W")
-        b3 = tf.Variable(tf.zeros([self.output_dim]), name="b")
-        Y_pred = tf.add(tf.matmul(h2, W3), b3, name="Y_pred")
+        h = graph.get_tensor_by_name(f"{scope}/L:0")
+
+        dim_list = encoder.create_model_dims()[::-1]
+        for i in range(1, len(dim_list)):
+            W = tf.Variable(tf.random_normal([dim_list[i - 1], dim_list[i]]), name="W")
+            b = tf.Variable(tf.zeros([dim_list[i]]), name="b")
+            if len(dim_list) - (i + 1):
+                h = tf.sigmoid(tf.add(tf.matmul(h, W), b))
+        Y_pred = tf.add(tf.matmul(h, W), b, name="Y_pred")
+
         # train
         loss = tf.reduce_mean(
             tf.squared_difference(Y, Y_pred),
@@ -210,4 +204,3 @@ class AutoEncoderTask(UnsupervisedTask):
         train_step = tf.train.RMSPropOptimizer(self.lr).minimize(
             loss, var_list=train_vars, name='train_step'
         )
-
